@@ -20,7 +20,7 @@ from utils.data_loading import BasicDataset, CarvanaDataset
 from utils.dice_score import dice_loss
 
 dir_img = Path('./data/imgs/')
-dir_mask = Path('./data/masks/')
+dir_mask = Path('./data/binary_masks/')
 dir_checkpoint = Path('./checkpoints/')
 
 
@@ -83,7 +83,7 @@ def train_model(
 
     # 5. Begin training
     for epoch in range(1, epochs + 1):
-        model.train()
+        model.train()  # model = UNet(n_channels=3, n_classes=args.classes, bilinear=args.bilinear)
         epoch_loss = 0
         with tqdm(total=n_train, desc=f'Epoch {epoch}/{epochs}', unit='img') as pbar:
             for batch in train_loader:
@@ -193,7 +193,7 @@ if __name__ == '__main__':
     # Change here to adapt to your data
     # n_channels=3 for RGB images
     # n_classes is the number of probabilities you want to get per pixel
-    model = UNet(n_channels=3, n_classes=args.classes, bilinear=args.bilinear)
+    model = UNet(n_channels=1, n_classes=args.classes, bilinear=args.bilinear)
     model = model.to(memory_format=torch.channels_last)
 
     logging.info(f'Network:\n'
