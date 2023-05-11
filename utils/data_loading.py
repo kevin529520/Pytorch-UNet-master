@@ -30,14 +30,30 @@ def unique_mask_values(idx, mask_dir, mask_suffix):  # suffix   imgs到mask的va
     # logging.info('已执行list(mask_dir.glob....)')
     # print('2')
     mask = np.asarray(load_image(mask_file))
+    mask_binary = np.zeros_like(mask)
+
+    for i in range(len(mask)):
+        for j in range(len(mask[0])):
+            if mask[i][j] > 127:
+                mask_binary[i][j] = 255
+            else:
+                mask_binary[i][j] = 0
+    # 数组二值化
     # print(mask)
     if mask.ndim == 2:
-        return np.unique(mask)
+        return np.unique(mask_binary)
     elif mask.ndim == 3:
-        mask = mask.reshape(-1, mask.shape[-1])
-        return np.unique(mask, axis=0)
+        mask_binary = mask_binary.reshape(-1, mask_binary.shape[-1])
+        return np.unique(mask_binary, axis=0)
     else:
         raise ValueError(f'Loaded masks should have 2 or 3 dimensions, found {mask.ndim}')
+    # with Pool() as p:
+    #     unique = list(tqdm(
+    #         p.imap(partial(unique_mask_values, mask_dir=self.mask_dir, mask_suffix=self.mask_suffix), self.ids),
+    #         total=len(self.ids)
+    #     ))  # partial将unique_mask_values的参数固定   p.imap多个进程并行地将函数unique_mask_values应用于可迭代对象self.ids中的每个元素。
+    #
+    # self.mask_values = list(sorted(np.unique(np.concatenate(unique), axis=0).tolist()))
 
 
 class BasicDataset(Dataset):
@@ -73,6 +89,7 @@ class BasicDataset(Dataset):
         assert newW > 0 and newH > 0, 'Scale is too small, resized images would have no pixel'
         pil_img = pil_img.resize((newW, newH), resample=Image.NEAREST if is_mask else Image.BICUBIC)
         img = np.asarray(pil_img)
+        # resize img
 
         if is_mask:
             mask = np.zeros((newH, newW), dtype=np.int64)
@@ -89,6 +106,9 @@ class BasicDataset(Dataset):
                 img = img[np.newaxis, ...]
             else:
                 img = img.transpose((2, 0, 1))
+            #这行代码将图像数组的维度从(0,1,2)转换为(2,0,1)，即将通道维度放在第一维，
+            # 这是因为在PyTorch中，卷积层的输入是(batchsize, channels, height, width)。
+            # 因此，这行代码将图像数组转换为PyTorch所需的格式。
 
             if (img > 1).any():
                 img = img / 255.0
