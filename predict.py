@@ -23,6 +23,7 @@ def predict_img(net,
     # resize img
     # img转换成pytorch的输入格式（维度转换）
     img = img.unsqueeze(0)
+    # 增加一个batch维度 （1）
     img = img.to(device=device, dtype=torch.float32)
 
     with torch.no_grad():
@@ -33,7 +34,7 @@ def predict_img(net,
         # full_img.size[1], full_img.size[0]), which is the height and width of the input image. T
         # 上采样，bilinear插值  
         if net.n_classes > 1:
-         # args.classes default=2
+            # args.classes default=2
             mask = output.argmax(dim=1)  
         #  taking the index of the maximum value along the second dimension of the output tensor.
         #  img 数组沿着第一个维度（即通道维度）进行红、绿、蓝三个通道上每个像素值的 argmax 操作。
@@ -87,7 +88,7 @@ def mask_to_image(mask: np.ndarray, mask_values):
     # mask_values 的第一个元素是一个列表或数组，则说明每个标签有多个取值。
     # 在这种情况下，输出数组 out 的第三个维度等于 len(mask_values[0])，
     # 即每个像素的值需要使用多个通道来表示不同标签的取值。
-    #mask.shape[-2] 和 mask.shape[-1] 分别表示输入 mask 的倒数第二个和倒数第一个维度的长度，即高度和宽度。
+    # mask.shape[-2] 和 mask.shape[-1] 分别表示输入 mask 的倒数第二个和倒数第一个维度的长度，即高度和宽度。
     # 因此，out 的形状为 (height, width, num_classes)
     elif mask_values == [0, 1]:
         out = np.zeros((mask.shape[-2], mask.shape[-1]), dtype=bool)
@@ -123,7 +124,7 @@ if __name__ == '__main__':
     # 加载参数
     # default='MODEL.pth'
     mask_values = state_dict.pop('mask_values', [0, 1]) 
-     # 移动字典里的 mask_values值到mask_values，没有的话就默认值[0,1]
+    # 移动字典里的 mask_values值到mask_values，没有的话就默认值[0,1]
     net.load_state_dict(state_dict)
 
     logging.info('Model loaded!')
@@ -141,6 +142,7 @@ if __name__ == '__main__':
         if not args.no_save:
             out_filename = out_files[i]
             result = mask_to_image(mask, mask_values)
+            # “颜色解码”
             result.save(out_filename)
             logging.info(f'Mask saved to {out_filename}')
 

@@ -14,11 +14,15 @@ from torch.utils.data import DataLoader, random_split
 from tqdm import tqdm
 
 import wandb
+# weight and bias
 from evaluate import evaluate
 from unet import UNet
 from utils.data_loading import BasicDataset, CarvanaDataset
 from utils.dice_score import dice_loss
+import matplotlib.pyplot as plt
 
+# 在训练循环之前创建一个空列表，用于存储每个epoch的损失值
+epoch_losses = []
 dir_img = Path('./data/imgs/')
 dir_mask = Path('./data/binary_masks/')
 dir_checkpoint = Path('./checkpoints/')
@@ -34,13 +38,18 @@ def train_model(
         save_checkpoint: bool = True,
         img_scale: float = 0.5,
         amp: bool = False,
+        # 是否开启 AMP（Automatic Mixed Precision）加速技术，当设置为 True 时，可以通过混合精度训练加速模型训练；
         weight_decay: float = 1e-8,
         momentum: float = 0.999,
+        # 动量，用于加速梯度下降更新权重的过程，默认为 0.999；
         gradient_clipping: float = 1.0,
+        # 梯度剪裁，防止梯度爆炸，默认为 1.0；
 ):
     # 1. Create dataset
     try:
         dataset = CarvanaDataset(dir_img, dir_mask, img_scale)
+        # img  对于灰度图像 放缩 加batch_size维度 像素归一化
+        # mask 对于灰度图像 放缩 像素值按从小到大映射到1，2，3，4，5...
     except (AssertionError, RuntimeError, IndexError):
         dataset = BasicDataset(dir_img, dir_mask, img_scale)
 
@@ -126,6 +135,11 @@ def train_model(
                 })
                 pbar.set_postfix(**{'loss (batch)': loss.item()})
 
+
+                # 将当前epoch的损失值添加到列表中
+                epoch_losses.append(epoch_loss)
+
+
                 # Evaluation round
                 division_step = (n_train // (5 * batch_size))
                 if division_step > 0:
@@ -164,6 +178,12 @@ def train_model(
             state_dict['mask_values'] = dataset.mask_values
             torch.save(state_dict, str(dir_checkpoint / 'checkpoint_epoch{}.pth'.format(epoch)))
             logging.info(f'Checkpoint {epoch} saved!')
+    # 绘制折线图
+    plt.plot(range(1, epochs + 1), epoch_losses, 'b-')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.title('Training Loss')
+    plt.show()
 
 
 def get_args():
@@ -194,14 +214,19 @@ if __name__ == '__main__':
     # n_channels=3 for RGB images
     # n_classes is the number of probabilities you want to get per pixel
     model = UNet(n_channels=1, n_classes=args.classes, bilinear=args.bilinear)
+    # args.classes=2 default
+    # 由于输出通道数为 2，因此对输入进行卷积后会得到一个大小为 H x W x 2 的输出张量
     model = model.to(memory_format=torch.channels_last)
-
+    # 指定待转换的内存格式为 torch.channels_last。
+    # 这种内存格式是一种替代 NCHW 张量内存格式的方式，
+    # 将通道数（Channels）作为最后一个维度存储，从而更加适合 GPU 并行计算，提升模型的性能。
     logging.info(f'Network:\n'
                  f'\t{model.n_channels} input channels\n'
                  f'\t{model.n_classes} output channels (classes)\n'
                  f'\t{"Bilinear" if model.bilinear else "Transposed conv"} upscaling')
 
     if args.load:
+        # parser.add_argument('--load', '-f', type=str, default=False, help='Load model from a .pth file')
         state_dict = torch.load(args.load, map_location=device)
         del state_dict['mask_values']
         model.load_state_dict(state_dict)
